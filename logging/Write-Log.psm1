@@ -1,4 +1,4 @@
-<#
+﻿<#
  .Synopsis
   Writes out a log line to a file in a standard consistent format.
 
@@ -32,25 +32,31 @@ function Write-Log {
     param(
         [parameter(mandatory=$true)][string]$Message,
         [parameter(mandatory=$true)][string]$Path,
-        [parameter(mandatory=$false)][string][ValidateSet("json","csv","text")]$Type="json"
+        [parameter(mandatory=$false)][string][ValidateSet("json","csv","text")]$Type="json",
+        [parameter(mandatory=$false)]$additional
     )
     switch($Type){
         "json" {
-            $LogMessage = @{}
-            $LogMessage.Message = $Message
+            $LogMessage = [ordered]@{}
             $LogMessage.Timestamp = ((Get-Date).ToUniversalTime()).ToString("o")
+            $LogMessage.Message = $Message
+            if ($additional) {
+                $LogMessage.Additional = @{}
+                $LogMessage.Additional = $additional
+            }
             $LogMessage.Server = $env:computername
             $LogMessage.Caller = $MyInvocation.PSCommandPath
-            $LogMessage = $LogMessage|ConvertTo-Json -Compress
+            $LogMessage.User = [Environment]::UserName
+            $LogMessage = $LogMessage|ConvertTo-Json -Compress -Depth 6
         }
         "csv" {
             if (!(Test-Path $Path)){
-                Add-Content -Value "Message,Timestamp,Server,Caller" -Path $Path
+                Add-Content -Value "Timestamp,Message,Server,Caller,User" -Path $Path
             }
-            $LogMessage = "$Message,$(((Get-Date).ToUniversalTime()).ToString("o")),$($env:computername),$($MyInvocation.PSCommandPath)"
+            $LogMessage = "$(((Get-Date).ToUniversalTime()).ToString("o")),$Message,$($env:computername),$($MyInvocation.PSCommandPath),$([Environment]::UserName)"
         }
         "text" {
-            $LogMessage = "[$(((Get-Date).ToUniversalTime()).ToString("o"))]`tServer:$($env:computername)`tCaller:$($MyInvocation.PSCommandPath)`tMessage:$Message"
+            $LogMessage = "[$(((Get-Date).ToUniversalTime()).ToString("o"))]`tUser:$([Environment]::UserName)`tServer:$($env:computername)`tCaller:$($MyInvocation.PSCommandPath)`tMessage:$Message" 
         }
     }
     Add-Content -Value $LogMessage -Path $Path
